@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RH MIDI CONVERTER</title>
+<style>
+  :root {
+    --black: #000000;
+    --panel: #120000;
+    --panel-2: #1a0202;
+    --red: #7a0007;
+    --red-bright: #c40010;
+    --white: #ffffff;
+    --dim: #8a8a8a;
+    --line: #3a0a0a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--black);
+    color: var(--white);
+    font-family: 'Oswald', 'Arial Narrow', Helvetica, sans-serif;
+    min-height: 100%;
+  }
+  body {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .mono { font-family: 'Courier New', Consolas, monospace; }
+
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  header.hero {
+    border-bottom: 3px solid var(--red);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+    position: relative;
+  }
+  header.hero::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0;
+    width: 64px; height: 6px;
+    background: var(--red-bright);
+  }
+  h1 {
+    font-size: clamp(2.2rem, 7vw, 3.6rem);
+    letter-spacing: 0.5px;
+    margin: 18px 0 10px;
+    line-height: 1.02;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  h1 span { color: var(--red-bright); }
+  .lede {
+    color: var(--dim);
+    font-size: 1.02rem;
+    max-width: 58ch;
+    line-height: 1.55;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+
+  .drop {
+    border: 2px dashed var(--line);
+    background: var(--panel-2);
+    padding: 42px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .drop.drag {
+    border-color: var(--red-bright);
+    background: #230303;
+  }
+  .drop .big {
+    font-size: 1.3rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    color: var(--white);
+  }
+  .drop .small {
+    color: var(--dim);
+    font-size: 0.88rem;
+    font-family: Georgia, serif;
+  }
+  input[type="file"] { display: none; }
+
+  .meter {
+    display: flex;
+    gap: 2px;
+    margin: 20px 0 4px;
+    height: 18px;
+    align-items: flex-end;
+  }
+  .meter i {
+    flex: 1;
+    background: var(--line);
+    height: 20%;
+    display: block;
+  }
+  .meter.active i { background: var(--red-bright); animation: bounce 0.9s ease-in-out infinite; }
+  .meter i:nth-child(odd) { animation-delay: 0.15s; }
+  .meter i:nth-child(3n) { animation-delay: 0.3s; }
+  @keyframes bounce {
+    0%, 100% { height: 15%; }
+    50% { height: 90%; }
+  }
+
+  .limitNote {
+    color: var(--dim);
+    font-size: 0.78rem;
+    text-align: center;
+    margin-top: 14px;
+    font-family: Georgia, serif;
+  }
+  .limitNote b { color: var(--red-bright); }
+
+  .warn {
+    color: var(--red-bright);
+    font-size: 0.85rem;
+    margin-top: 14px;
+    text-align: center;
+    font-family: Georgia, serif;
+  }
+
+  .results { display: flex; flex-direction: column; gap: 20px; }
+
+  .songCard {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--red);
+    padding: 24px;
+  }
+  .songCard .headRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .songCard .idx {
+    color: var(--red-bright);
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin: 14px 0;
+  }
+  .stat {
+    background: var(--panel-2);
+    padding: 14px 12px;
+  }
+  .stat .n {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--white);
+  }
+  .stat .l {
+    color: var(--dim);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  label.field-label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--dim);
+    margin-bottom: 6px;
+  }
+  input[type="text"] {
+    width: 100%;
+    background: var(--black);
+    border: 1px solid var(--line);
+    color: var(--white);
+    padding: 11px 13px;
+    font-size: 0.95rem;
+    font-family: 'Courier New', monospace;
+  }
+  input[type="text"]:focus { outline: none; border-color: var(--red-bright); }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+  button.cta {
+    background: var(--red);
+    color: var(--white);
+    border: none;
+    padding: 13px 24px;
+    font-size: 0.88rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .12s ease;
+  }
+  button.cta:hover { background: var(--red-bright); }
+  button.ghost {
+    background: transparent;
+    color: var(--white);
+    border: 1px solid var(--line);
+    padding: 13px 20px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button.ghost:hover { border-color: var(--red-bright); color: var(--red-bright); }
+
+  textarea.out {
+    width: 100%;
+    height: 180px;
+    background: var(--black);
+    color: #cfcfcf;
+    border: 1px solid var(--line);
+    padding: 14px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    resize: vertical;
+    margin-top: 14px;
+  }
+
+  .note {
+    font-family: Georgia, serif;
+    color: var(--dim);
+    font-size: 0.86rem;
+    line-height: 1.6;
+    margin-top: 16px;
+  }
+  .note b { color: var(--white); }
+
+  footer {
+    color: var(--dim);
+    font-size: 0.78rem;
+    text-align: center;
+    margin-top: 40px;
+    font-family: Georgia, serif;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>MIDI → <span>LUA</span></h1>
+    <p class="lede">Upload sampe 10 file MIDI sekaligus, tiap lagu diconvert jadi ModuleScript sendiri-sendiri — format <code class="mono">{t, note, dur}</code>, siap taro di RH_VirtualSDCard.</p>
+  </header>
+
+  <div class="panel">
+    <div class="drop" id="drop">
+      <div class="meter" id="meter">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <div class="big" id="dropText">Taro file .mid disini, atau klik buat pilih</div>
+      <div class="small" id="dropFile">belum ada file dipilih</div>
+      <input type="file" id="fileInput" accept=".mid,.midi" multiple>
+    </div>
+    <p class="limitNote">Maksimal <b>10 lagu</b> sekali convert.</p>
+    <p class="warn hidden" id="limitWarn"></p>
+  </div>
+
+  <div class="results" id="results"></div>
+
+  <footer>RH MIDI Converter — proses di browser kamu sendiri, gak ada file yang dikirim kemana-mana.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const MAX_SONGS = 10;
+
+  // =============================================
+  // PARSER MIDI (murni JS, ga pake library)
+  // =============================================
+  function readVarLen(bytes, pos) {
+    let value = 0;
+    let b;
+    do {
+      b = bytes[pos++];
+      value = (value << 7) | (b & 0x7F);
+    } while (b & 0x80);
+    return [value, pos];
+  }
+
+  function parseMidi(bytes) {
+    if (String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) !== "MThd") {
+      throw new Error("Bukan file MIDI yang valid (header MThd ga ketemu)");
+    }
+    const headerLen = (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | bytes[7];
+    const division = (bytes[8 + headerLen - 2] << 8) | bytes[8 + headerLen - 1];
+    const ntracks = (bytes[10] << 8) | bytes[11];
+    if (division & 0x8000) throw new Error("SMPTE time division ga didukung");
+    const ticksPerBeat = division;
+
+    let pos = 8 + headerLen;
+    const tracksEvents = [];
+
+    for (let t = 0; t < ntracks; t++) {
+      const chunkId = String.fromCharCode(bytes[pos], bytes[pos+1], bytes[pos+2], bytes[pos+3]);
+      if (chunkId !== "MTrk") throw new Error("Track " + t + " rusak (bukan MTrk)");
+      const trackLen = (bytes[pos+4] << 24) | (bytes[pos+5] << 16) | (bytes[pos+6] << 8) | bytes[pos+7];
+      let p = pos + 8;
+      const trackEnd = p + trackLen;
+      let absTick = 0;
+      let runningStatus = null;
+      const events = [];
+
+      while (p < trackEnd) {
+        let delta;
+        [delta, p] = readVarLen(bytes, p);
+        absTick += delta;
+        let status = bytes[p];
+
+        if (status === 0xFF) {
+          p++;
+          const metaType = bytes[p]; p++;
+          let len; [len, p] = readVarLen(bytes, p);
+          if (metaType === 0x51) {
+            const tempo = (bytes[p] << 16) | (bytes[p+1] << 8) | bytes[p+2];
+            events.push({ tick: absTick, type: "tempo", tempo });
+          } else if (metaType === 0x2F) {
+            events.push({ tick: absTick, type: "end" });
+          }
+          p += len;
+          runningStatus = null;
+        } else if (status === 0xF0 || status === 0xF7) {
+          p++;
+          let len; [len, p] = readVarLen(bytes, p);
+          p += len;
+          runningStatus = null;
+        } else {
+          if (status & 0x80) { runningStatus = status; p++; }
+          else { status = runningStatus; }
+
+          const eventType = status & 0xF0;
+          const channel = status & 0x0F;
+
+          if ([0x80, 0x90, 0xA0, 0xB0, 0xE0].includes(eventType)) {
+            const d1 = bytes[p]; p++;
+            const d2 = bytes[p]; p++;
+            if (eventType === 0x90) {
+              if (d2 === 0) events.push({ tick: absTick, type: "off", channel, pitch: d1 });
+              else events.push({ tick: absTick, type: "on", channel, pitch: d1, vel: d2 });
+            } else if (eventType === 0x80) {
+              events.push({ tick: absTick, type: "off", channel, pitch: d1 });
+            }
+          } else if (eventType === 0xC0 || eventType === 0xD0) {
+            p++;
+          } else {
+            p++;
+          }
+        }
+      }
+      tracksEvents.push(events);
+      pos = trackEnd;
+    }
+
+    return { ticksPerBeat, tracksEvents };
+  }
+
+  function buildTempoMap(tracksEvents) {
+    const tempos = [];
+    for (const events of tracksEvents) {
+      for (const ev of events) {
+        if (ev.type === "tempo") tempos.push([ev.tick, ev.tempo]);
+      }
+    }
+    tempos.sort((a, b) => a[0] - b[0]);
+    if (tempos.length === 0 || tempos[0][0] !== 0) tempos.unshift([0, 500000]);
+    return tempos;
+  }
+
+  function tickToSeconds(tick, tempoMap, ticksPerBeat) {
+    let seconds = 0, lastTick = 0, lastTempo = tempoMap[0][1];
+    for (const [tTick, tempo] of tempoMap) {
+      if (tTick >= tick) break;
+      seconds += (tTick - lastTick) * (lastTempo / 1e6) / ticksPerBeat;
+      lastTick = tTick;
+      lastTempo = tempo;
+    }
+    seconds += (tick - lastTick) * (lastTempo / 1e6) / ticksPerBeat;
+    return seconds;
+  }
+
+  function extractNotes(bytes) {
+    const { ticksPerBeat, tracksEvents } = parseMidi(bytes);
+    const tempoMap = buildTempoMap(tracksEvents);
+
+    const allNotes = [];
+    for (const events of tracksEvents) {
+      const active = {};
+      for (const ev of events) {
+        if (ev.type === "on") {
+          active[ev.channel + ":" + ev.pitch] = ev.tick;
+        } else if (ev.type === "off") {
+          const key = ev.channel + ":" + ev.pitch;
+          if (key in active) {
+            const startTick = active[key];
+            delete active[key];
+            allNotes.push({ startTick, pitch: ev.pitch, endTick: ev.tick });
+          }
+        }
+      }
+    }
+    allNotes.sort((a, b) => a.startTick - b.startTick);
+
+    return allNotes.map(n => {
+      const t = tickToSeconds(n.startTick, tempoMap, ticksPerBeat);
+      const tEnd = tickToSeconds(n.endTick, tempoMap, ticksPerBeat);
+      return { t, pitch: n.pitch, dur: Math.max(tEnd - t, 0.05) };
+    });
+  }
+
+  // =============================================
+  // FORMAT ANGKA
+  // =============================================
+  function fmtNum(x) {
+    const r = Math.round(x * 100) / 100;
+    if (r === Math.trunc(r)) return String(Math.trunc(r));
+    let s = r.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+    if (s.startsWith("0.")) s = s.slice(1);
+    else if (s.startsWith("-0.")) s = "-" + s.slice(2);
+    return s;
+  }
+
+  function buildLua(notes, songName) {
+    const total = notes.length;
+    const durTotal = total ? (notes[total - 1].t + notes[total - 1].dur) : 0;
+    const header =
+      "-- =============================================\n" +
+      "-- " + songName + " - hasil convert MIDI (RH MIDI Converter)\n" +
+      "-- Total note: " + total + ", durasi: ~" + fmtNum(durTotal) + " detik\n" +
+      "-- Note = angka pitch MIDI ASLI (GA digeser/dinormalisasi)\n" +
+      "-- =============================================\n";
+    const body = notes.map(n =>
+      "{" + fmtNum(n.t) + "," + n.pitch + "," + fmtNum(n.dur) + "}"
+    ).join(",");
+    return header + "return {\n" + body + "\n}\n";
+  }
+
+  function cleanName(raw) {
+    return raw.replace(/\.(mid|midi)$/i, "").toUpperCase().replace(/[^A-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || "LAGU";
+  }
+
+  // =============================================
+  // UI WIRING
+  // =============================================
+  const drop = document.getElementById("drop");
+  const fileInput = document.getElementById("fileInput");
+  const dropText = document.getElementById("dropText");
+  const dropFile = document.getElementById("dropFile");
+  const meter = document.getElementById("meter");
+  const limitWarn = document.getElementById("limitWarn");
+  const results = document.getElementById("results");
+
+  let songCount = 0;
+
+  function makeSongCard(file, idx) {
+    const card = document.createElement("div");
+    card.className = "songCard";
+
+    const safeName = cleanName(file.name);
+    const cardId = "song_" + idx + "_" + Date.now();
+
+    card.innerHTML =
+      '<div class="headRow">' +
+        '<span class="idx">LAGU ' + idx + '</span>' +
+        '<span class="small mono" style="color:var(--dim)">' + file.name + '</span>' +
+      '</div>' +
+      '<div class="stats" id="' + cardId + '_stats"></div>' +
+      '<label class="field-label">Nama lagu (judul ModuleScript)</label>' +
+      '<input type="text" class="mono" id="' + cardId + '_name" value="' + safeName + '">' +
+      '<div class="row">' +
+        '<button class="cta" id="' + cardId + '_dl">Download .lua</button>' +
+        '<button class="ghost" id="' + cardId + '_copy">Copy teks</button>' +
+      '</div>' +
+      '<textarea class="out mono" id="' + cardId + '_out" readonly spellcheck="false"></textarea>';
+
+    results.appendChild(card);
+    return cardId;
+  }
+
+  function fillStats(cardId, notes) {
+    const pitches = notes.map(n => n.pitch);
+    const minP = Math.min(...pitches);
+    const maxP = Math.max(...pitches);
+    const uniqueP = new Set(pitches).size;
+    const durTotal = notes[notes.length - 1].t + notes[notes.length - 1].dur;
+
+    document.getElementById(cardId + "_stats").innerHTML =
+      '<div class="stat"><div class="n">' + notes.length + '</div><div class="l">Total Note</div></div>' +
+      '<div class="stat"><div class="n">' + durTotal.toFixed(1) + '</div><div class="l">Durasi (detik)</div></div>' +
+      '<div class="stat"><div class="n">' + minP + '-' + maxP + '</div><div class="l">Range Pitch</div></div>' +
+      '<div class="stat"><div class="n">' + uniqueP + '</div><div class="l">Pitch Beda</div></div>';
+  }
+
+  function wireCard(cardId, notes, initialName) {
+    const nameInput = document.getElementById(cardId + "_name");
+    const outArea = document.getElementById(cardId + "_out");
+    const btnDl = document.getElementById(cardId + "_dl");
+    const btnCopy = document.getElementById(cardId + "_copy");
+
+    let currentName = initialName;
+
+    function rebuild() {
+      currentName = nameInput.value.trim() || "LAGU";
+      outArea.value = buildLua(notes, currentName);
+    }
+    rebuild();
+
+    nameInput.addEventListener("input", rebuild);
+
+    btnDl.addEventListener("click", () => {
+      const blob = new Blob([outArea.value], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = currentName + ".lua";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    btnCopy.addEventListener("click", () => {
+      navigator.clipboard.writeText(outArea.value).then(() => {
+        const old = btnCopy.textContent;
+        btnCopy.textContent = "Ke-copy!";
+        setTimeout(() => { btnCopy.textContent = old; }, 1200);
+      });
+    });
+  }
+
+  function processFile(file, idx) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const bytes = new Uint8Array(e.target.result);
+          const notes = extractNotes(bytes);
+          if (notes.length === 0) throw new Error("ga ada note ketemu");
+
+          const cardId = makeSongCard(file, idx);
+          fillStats(cardId, notes);
+          wireCard(cardId, notes, cleanName(file.name));
+        } catch (err) {
+          const card = document.createElement("div");
+          card.className = "songCard";
+          card.innerHTML =
+            '<div class="headRow"><span class="idx">LAGU ' + idx + '</span>' +
+            '<span class="small mono" style="color:var(--dim)">' + file.name + '</span></div>' +
+            '<p class="warn">Gagal convert: ' + err.message + '</p>';
+          results.appendChild(card);
+        }
+        resolve();
+      };
+      reader.onerror = () => resolve();
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function handleFiles(fileList) {
+    let files = Array.from(fileList).filter(f => /\.(mid|midi)$/i.test(f.name));
+    if (files.length === 0) return;
+
+    if (files.length > MAX_SONGS) {
+      limitWarn.textContent = "Kamu pilih " + files.length + " file, cuma " + MAX_SONGS + " pertama yang diconvert.";
+      limitWarn.classList.remove("hidden");
+      files = files.slice(0, MAX_SONGS);
+    } else {
+      limitWarn.classList.add("hidden");
+    }
+
+    dropFile.textContent = files.length + " file dipilih";
+    meter.classList.add("active");
+    dropText.textContent = "Lagi diproses...";
+
+    results.innerHTML = "";
+    songCount = 0;
+    for (const file of files) {
+      songCount++;
+      await processFile(file, songCount);
+    }
+
+    meter.classList.remove("active");
+    dropText.textContent = "Berhasil convert " + songCount + " lagu. Taro file lagi buat convert ulang";
+  }
+
+  drop.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
+
+  ["dragenter", "dragover"].forEach(evt =>
+    drop.addEventListener(evt, (e) => { e.preventDefault(); drop.classList.add("drag"); })
+  );
+  ["dragleave", "drop"].forEach(evt =>
+    drop.addEventListener(evt, (e) => { e.preventDefault(); drop.classList.remove("drag"); })
+  );
+  drop.addEventListener("drop", (e) => {
+    handleFiles(e.dataTransfer.files);
+  });
+})();
+</script>
+</body>
+</html>
